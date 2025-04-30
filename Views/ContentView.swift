@@ -78,5 +78,7 @@ struct LanguageSelectorView: View {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
+            .previewDevice("iPhone 15 Pro")
+            .previewDisplayName("iPhone 15 Pro")
     }
 } 

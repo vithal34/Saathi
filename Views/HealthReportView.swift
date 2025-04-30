@@ -195,5 +195,27 @@ struct ReportDetailView: View {
 struct HealthReportView_Previews: PreviewProvider {
     static var previews: some View {
         HealthReportView()
+            .previewDevice("iPhone 15 Pro")
+            .previewDisplayName("Health Reports")
+    }
+}
+
+// Add sample data for previews
+extension HealthReportView {
+    static var sampleReports: [SOAPReport] {
+        [
+            SOAPReport(
+                subjective: "Patient reports fever and cough for 3 days",
+                objective: "Temperature: 38.5°C, Pulse: 90 bpm",
+                assessment: "Possible viral infection",
+                plan: "Rest, hydration, monitor symptoms"
+            ),
+            SOAPReport(
+                subjective: "Patient reports headache and fatigue",
+                objective: "Blood pressure: 120/80, No fever",
+                assessment: "Possible stress-related symptoms",
+                plan: "Rest, stress management, follow-up in 1 week"
+            )
+        ]
     }
 } 

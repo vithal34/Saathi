@@ -71,5 +71,7 @@ struct ProfileView: View {
 struct ProfileView_Previews: PreviewProvider {
     static var previews: some View {
         ProfileView()
+            .previewDevice("iPhone 15 Pro")
+            .previewDisplayName("Profile View")
     }
 } 

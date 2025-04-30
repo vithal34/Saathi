@@ -132,6 +132,8 @@ struct ChatView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
             ChatView()
+                .previewDevice("iPhone 15 Pro")
+                .previewDisplayName("Chat View")
         }
     }
 } 

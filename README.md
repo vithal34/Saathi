@@ -1,54 +1,80 @@
-# Saathi - AI-Powered Healthcare Platform
+# SaathiCare - AI-Powered Healthcare Platform
 
-Saathi is a freemium AI-powered healthcare platform designed for preliminary health screening in India. The app allows users to interact with an AI assistant in Hindi or English and receive AI-generated SOAP reports with triage-based diagnosis.
+SaathiCare is a mobile-first healthcare platform designed to serve 600M+ underserved Indians, particularly in rural and low-income communities. The platform uses AI to provide multilingual healthcare support and triage services.
+
+## Mission
+
+Use AI and mobile technology to:
+- Bridge gaps in rural healthcare access
+- Provide free symptom triage in local languages
+- Connect critical cases to doctors and clinics
 
 ## Features
 
-- 🤖 AI-powered health assistant (supports ChatGPT, Claude, or Gemini)
-- 🌐 Bilingual support (Hindi and English)
-- 📝 SOAP report generation
-- 🚨 Triage-based diagnosis
-- 👤 User profile management
-- 📊 Health report history
+### 1. Multilingual AI Triage Chatbot
+- Conversational voice and text interface
+- Support for 5+ Indian languages (Hindi, Bengali, Tamil, Marathi, Telugu)
+- Symptom-based triage using WHO IMCI and Indian MoH protocols
+- Emergency case flagging and escalation
 
-## Requirements
+### 2. Simple Patient Onboarding
+- Offline-first design with automatic sync
+- Low-literacy optimized interface
+- Voice prompts and icon guidance
+- Basic patient information collection
 
-- iOS 15.0+
-- Xcode 13.0+
-- Swift 5.5+
+### 3. Critical Case Alert System
+- Automated high-risk user detection
+- Multi-channel notifications (SMS/WhatsApp/email)
+- Partner clinic integration
 
-## Setup
+### 4. Doctor Review Dashboard
+- Case management interface
+- AI report review and annotation
+- Priority assignment and tracking
+
+### 5. Admin & Outreach Dashboard
+- Analytics and metrics tracking
+- Regional health trend analysis
+- Clinic referral statistics
+
+### 6. Data Privacy & Compliance
+- DPDP Bill compliance
+- End-to-end encryption
+- Secure data storage
+- Consent management
+
+## Technical Stack
+
+- **Frontend**: SwiftUI (iOS), React Native (Android)
+- **Backend**: Node.js, Express
+- **Database**: PostgreSQL
+- **AI Services**: OpenAI GPT-4, Anthropic Claude
+- **Authentication**: Firebase Auth
+- **Storage**: Firebase Storage
+- **Analytics**: Mixpanel
+
+## Getting Started
 
 1. Clone the repository
-2. Open `Saathi.xcodeproj` in Xcode
-3. Configure your AI provider API key in `AIService.swift`
-4. Build and run the project
+2. Install dependencies
+3. Configure environment variables
+4. Run the development server
 
-## AI Integration
+## Development Setup
 
-The app supports integration with multiple AI providers:
-- OpenAI ChatGPT
-- Anthropic Claude
-- Google Gemini
+```bash
+# Install dependencies
+npm install
 
-To use a specific provider:
-1. Sign up for an API key from your preferred provider
-2. Update the `AIService` initialization with your API key
-3. Select the provider in the app settings
-
-## Architecture
-
-The app follows MVVM architecture with the following components:
-
-- **Views**: SwiftUI views for the user interface
-- **ViewModels**: Business logic and state management
-- **Services**: AI integration and data handling
-- **Models**: Data structures and business objects
+# Start development server
+npm run dev
+```
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 
