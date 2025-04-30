@@ -1,4 +1,5 @@
 import SwiftUI
+import Speech
 
 struct Message: Identifiable {
     let id = UUID()
@@ -10,6 +11,15 @@ class ChatViewModel: ObservableObject {
     @Published var messages: [Message] = []
     @Published var currentInput: String = ""
     @Published var isLoading: Bool = false
+    @Published var selectedLanguage: Language = .english
+    @Published var isRecording: Bool = false
+    @Published var errorMessage: String? = nil
+    
+    private var aiService: AITriageService
+    
+    init(aiService: AITriageService) {
+        self.aiService = aiService
+    }
     
     func sendMessage() {
         guard !currentInput.isEmpty else { return }
@@ -19,73 +29,6 @@ class ChatViewModel: ObservableObject {
         
         isLoading = true
         currentInput = ""
-        
-        // TODO: Integrate with AI API (ChatGPT/Claude/Gemini)
-        // This is a placeholder response
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            let aiResponse = Message(
-                text: "I'm analyzing your symptoms. Could you please provide more details about your condition?",
-                isUser: false
-            )
-            self.messages.append(aiResponse)
-            self.isLoading = false
-        }
-    }
-}
-
-struct ChatView: View {
-    @StateObject private var aiService = AIService(apiKey: "YOUR_API_KEY", provider: .chatGPT)
-    @State private var messages: [Message] = []
-    @State private var newMessage = ""
-    @State private var selectedLanguage = "English"
-    @State private var isLoading = false
-    
-    var body: some View {
-        VStack {
-            // Language selector
-            Picker("Language", selection: $selectedLanguage) {
-                Text("English").tag("English")
-                Text("हिंदी").tag("Hindi")
-            }
-            .pickerStyle(.segmented)
-            .padding()
-            
-            // Chat messages
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(messages) { message in
-                        MessageBubble(message: message)
-                    }
-                }
-                .padding()
-            }
-            
-            // Input area
-            HStack {
-                TextField(selectedLanguage == "English" ? "Type your message..." : "अपना संदेश टाइप करें...", text: $newMessage)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .disabled(isLoading)
-                
-                Button(action: sendMessage) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(.blue)
-                }
-                .disabled(newMessage.isEmpty || isLoading)
-            }
-            .padding()
-        }
-        .navigationTitle("Saathi Health Assistant")
-    }
-    
-    private func sendMessage() {
-        guard !newMessage.isEmpty else { return }
-        
-        let userMessage = Message(text: newMessage, isUser: true)
-        messages.append(userMessage)
-        
-        isLoading = true
-        newMessage = ""
         
         Task {
             do {
@@ -99,9 +42,146 @@ struct ChatView: View {
             } catch {
                 // Handle error
                 print("Error: \(error)")
+                errorMessage = "An error occurred. Please try again later."
             }
             
             isLoading = false
+        }
+    }
+    
+    func startRecording() {
+        // Implementation of startRecording
+    }
+    
+    func stopRecording() {
+        // Implementation of stopRecording
+    }
+}
+
+struct ChatView: View {
+    @StateObject private var viewModel: ChatViewModel
+    @Environment(\.colorScheme) var colorScheme
+    
+    init(aiService: AITriageService) {
+        _viewModel = StateObject(wrappedValue: ChatViewModel(aiService: aiService))
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Language selector
+            languageSelector
+            
+            // Chat messages
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(viewModel.messages) { message in
+                            MessageBubble(message: message)
+                        }
+                    }
+                    .padding()
+                }
+                .onChange(of: viewModel.messages) { _ in
+                    if let lastMessage = viewModel.messages.last {
+                        withAnimation {
+                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                        }
+                    }
+                }
+            }
+            
+            // Input area
+            inputArea
+        }
+        .navigationTitle("SaathiCare")
+        .overlay {
+            if viewModel.isLoading {
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black.opacity(0.3))
+            }
+        }
+        .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
+            Button("OK") {
+                viewModel.errorMessage = nil
+            }
+        } message: {
+            if let error = viewModel.errorMessage {
+                Text(error)
+            }
+        }
+    }
+    
+    private var languageSelector: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(Language.allCases) { language in
+                    Button(action: {
+                        viewModel.selectedLanguage = language
+                    }) {
+                        Text(language.rawValue)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(
+                                viewModel.selectedLanguage == language
+                                ? Color.blue
+                                : Color.gray.opacity(0.2)
+                            )
+                            .foregroundColor(
+                                viewModel.selectedLanguage == language
+                                ? .white
+                                : .primary
+                            )
+                            .cornerRadius(20)
+                    }
+                }
+            }
+            .padding()
+        }
+        .background(colorScheme == .dark ? Color.black : Color.white)
+    }
+    
+    private var inputArea: some View {
+        VStack(spacing: 0) {
+            Divider()
+            
+            HStack(spacing: 12) {
+                // Voice input button
+                Button(action: {
+                    if viewModel.isRecording {
+                        viewModel.stopRecording()
+                    } else {
+                        viewModel.startRecording()
+                    }
+                }) {
+                    Image(systemName: viewModel.isRecording ? "stop.circle.fill" : "mic.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundColor(viewModel.isRecording ? .red : .blue)
+                }
+                
+                // Text input
+                TextField(
+                    viewModel.selectedLanguage == .english
+                    ? "Describe your symptoms..."
+                    : "अपने लक्षणों का वर्णन करें...",
+                    text: $viewModel.currentInput
+                )
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .disabled(viewModel.isLoading)
+                
+                // Send button
+                Button(action: {
+                    viewModel.sendMessage()
+                }) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundColor(.blue)
+                }
+                .disabled(viewModel.currentInput.isEmpty || viewModel.isLoading)
+            }
+            .padding()
+            .background(colorScheme == .dark ? Color.black : Color.white)
         }
     }
 }
@@ -115,11 +195,25 @@ struct MessageBubble: View {
                 Spacer()
             }
             
-            Text(message.text)
-                .padding()
-                .background(message.isUser ? Color.blue : Color.gray.opacity(0.2))
-                .foregroundColor(message.isUser ? .white : .primary)
-                .cornerRadius(16)
+            VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
+                Text(message.text)
+                    .padding()
+                    .background(
+                        message.isUser
+                        ? Color.blue
+                        : Color.gray.opacity(0.2)
+                    )
+                    .foregroundColor(
+                        message.isUser
+                        ? .white
+                        : .primary
+                    )
+                    .cornerRadius(16)
+                
+                Text(message.timestamp, style: .time)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
             
             if !message.isUser {
                 Spacer()
@@ -131,9 +225,7 @@ struct MessageBubble: View {
 struct ChatView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            ChatView()
-                .previewDevice("iPhone 15 Pro")
-                .previewDisplayName("Chat View")
+            ChatView(aiService: AITriageService(apiKey: "YOUR_API_KEY", provider: .chatGPT))
         }
     }
 } 
