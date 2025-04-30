@@ -15,10 +15,10 @@ class ChatViewModel: ObservableObject {
     @Published var isRecording: Bool = false
     @Published var errorMessage: String? = nil
     
-    private var aiService: AITriageService
+    private var aiServices: [AITriageService]
     
-    init(aiService: AITriageService) {
-        self.aiService = aiService
+    init(aiServices: [AITriageService]) {
+        self.aiServices = aiServices
     }
     
     func sendMessage() {
@@ -32,7 +32,7 @@ class ChatViewModel: ObservableObject {
         
         Task {
             do {
-                let response = try await aiService.generateResponse(
+                let response = try await aiServices[0].generateResponse(
                     prompt: userMessage.text,
                     language: selectedLanguage
                 )
@@ -61,28 +61,98 @@ class ChatViewModel: ObservableObject {
 struct ChatView: View {
     @StateObject private var viewModel: ChatViewModel
     @Environment(\.colorScheme) var colorScheme
+    @State private var showingExportSheet = false
+    @State private var showingCategoryPicker = false
+    @State private var showingReactionPicker = false
     
-    init(aiService: AITriageService) {
-        _viewModel = StateObject(wrappedValue: ChatViewModel(aiService: aiService))
+    init(aiServices: [AITriageService]) {
+        _viewModel = StateObject(wrappedValue: ChatViewModel(aiServices: aiServices))
     }
     
     var body: some View {
         VStack(spacing: 0) {
-            // Language selector
-            languageSelector
+            // Header
+            VStack(spacing: 8) {
+                Text("Saathi")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                
+                HStack {
+                    Picker("Language", selection: $viewModel.selectedLanguage) {
+                        ForEach(Language.allCases, id: \.self) { language in
+                            Text(language.rawValue).tag(language)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    Button(action: {
+                        viewModel.clearFilters()
+                    }) {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                            .foregroundColor(.accentColor)
+                    }
+                }
+                .padding(.horizontal)
+                
+                // Search and Filters
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.gray)
+                    TextField("Search messages...", text: $viewModel.searchText)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    
+                    Toggle("Favorites", isOn: $viewModel.showFavoritesOnly)
+                        .labelsHidden()
+                }
+                .padding(.horizontal)
+                
+                // Category Picker
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack {
+                        ForEach(MessageCategory.allCases, id: \.self) { category in
+                            Button(action: {
+                                viewModel.selectedCategory = viewModel.selectedCategory == category ? nil : category
+                            }) {
+                                Text(category.rawValue)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        viewModel.selectedCategory == category
+                                        ? Color.accentColor
+                                        : Color(.systemGray5)
+                                    )
+                                    .foregroundColor(
+                                        viewModel.selectedCategory == category
+                                        ? .white
+                                        : .primary
+                                    )
+                                    .cornerRadius(20)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            }
+            .padding()
+            .background(Color.accentColor.opacity(0.1))
             
-            // Chat messages
+            // Chat Messages
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        ForEach(viewModel.messages) { message in
-                            MessageBubble(message: message)
+                        ForEach(viewModel.filteredMessages) { message in
+                            MessageBubble(message: message, viewModel: viewModel)
+                                .id(message.id)
+                                .onTapGesture {
+                                    viewModel.selectedMessage = message
+                                    viewModel.showMessageActions = true
+                                }
                         }
                     }
                     .padding()
                 }
-                .onChange(of: viewModel.messages) { _ in
-                    if let lastMessage = viewModel.messages.last {
+                .onChange(of: viewModel.filteredMessages.count) { _ in
+                    if let lastMessage = viewModel.filteredMessages.last {
                         withAnimation {
                             proxy.scrollTo(lastMessage.id, anchor: .bottom)
                         }
@@ -90,17 +160,48 @@ struct ChatView: View {
                 }
             }
             
-            // Input area
-            inputArea
-        }
-        .navigationTitle("SaathiCare")
-        .overlay {
-            if viewModel.isLoading {
-                ProgressView()
-                    .scaleEffect(1.5)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.black.opacity(0.3))
+            // Input Area
+            VStack(spacing: 8) {
+                if viewModel.isProcessing {
+                    ProgressView()
+                        .padding()
+                }
+                
+                HStack(spacing: 12) {
+                    TextField("Type your symptoms...", text: $viewModel.currentInput)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .disabled(viewModel.isRecording)
+                    
+                    Button(action: {
+                        if viewModel.isRecording {
+                            viewModel.stopRecording()
+                        } else {
+                            viewModel.startRecording()
+                        }
+                    }) {
+                        Image(systemName: viewModel.isRecording ? "stop.circle.fill" : "mic.circle.fill")
+                            .font(.system(size: 30))
+                            .foregroundColor(viewModel.isRecording ? .red : .accentColor)
+                    }
+                    
+                    Button(action: {
+                        viewModel.sendMessage()
+                    }) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 30))
+                            .foregroundColor(.accentColor)
+                    }
+                    .disabled(viewModel.currentInput.isEmpty)
+                }
+                .padding()
             }
+            .background(Color(.systemBackground))
+            .overlay(
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundColor(Color(.separator)),
+                alignment: .top
+            )
         }
         .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
             Button("OK") {
@@ -111,83 +212,48 @@ struct ChatView: View {
                 Text(error)
             }
         }
-    }
-    
-    private var languageSelector: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(Language.allCases) { language in
-                    Button(action: {
-                        viewModel.selectedLanguage = language
-                    }) {
-                        Text(language.rawValue)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(
-                                viewModel.selectedLanguage == language
-                                ? Color.blue
-                                : Color.gray.opacity(0.2)
-                            )
-                            .foregroundColor(
-                                viewModel.selectedLanguage == language
-                                ? .white
-                                : .primary
-                            )
-                            .cornerRadius(20)
-                    }
-                }
-            }
-            .padding()
+        .sheet(isPresented: $showingExportSheet) {
+            ShareSheet(activityItems: [viewModel.exportMessages()])
         }
-        .background(colorScheme == .dark ? Color.black : Color.white)
-    }
-    
-    private var inputArea: some View {
-        VStack(spacing: 0) {
-            Divider()
-            
-            HStack(spacing: 12) {
-                // Voice input button
-                Button(action: {
-                    if viewModel.isRecording {
-                        viewModel.stopRecording()
-                    } else {
-                        viewModel.startRecording()
-                    }
-                }) {
-                    Image(systemName: viewModel.isRecording ? "stop.circle.fill" : "mic.circle.fill")
-                        .font(.system(size: 28))
-                        .foregroundColor(viewModel.isRecording ? .red : .blue)
+        .confirmationDialog("Message Actions", isPresented: $viewModel.showMessageActions) {
+            if let message = viewModel.selectedMessage {
+                Button("Add to Favorites") {
+                    viewModel.toggleFavorite(message)
                 }
                 
-                // Text input
-                TextField(
-                    viewModel.selectedLanguage == .english
-                    ? "Describe your symptoms..."
-                    : "अपने लक्षणों का वर्णन करें...",
-                    text: $viewModel.currentInput
-                )
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .disabled(viewModel.isLoading)
-                
-                // Send button
-                Button(action: {
-                    viewModel.sendMessage()
-                }) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 28))
-                        .foregroundColor(.blue)
+                Button("Categorize") {
+                    showingCategoryPicker = true
                 }
-                .disabled(viewModel.currentInput.isEmpty || viewModel.isLoading)
+                
+                Button("Add Reaction") {
+                    showingReactionPicker = true
+                }
+                
+                Button("Export Chat", role: .none) {
+                    showingExportSheet = true
+                }
+                
+                Button("Cancel", role: .cancel) {}
             }
-            .padding()
-            .background(colorScheme == .dark ? Color.black : Color.white)
+        }
+        .sheet(isPresented: $showingCategoryPicker) {
+            if let message = viewModel.selectedMessage {
+                CategoryPickerView(selectedCategory: message.category) { category in
+                    viewModel.categorizeMessage(message, category: category)
+                }
+            }
+        }
+        .sheet(isPresented: $showingReactionPicker) {
+            if let message = viewModel.selectedMessage {
+                ReactionPickerView(message: message, viewModel: viewModel)
+            }
         }
     }
 }
 
 struct MessageBubble: View {
-    let message: Message
+    let message: ChatMessage
+    @ObservedObject var viewModel: ChatViewModel
     
     var body: some View {
         HStack {
@@ -196,23 +262,50 @@ struct MessageBubble: View {
             }
             
             VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
+                HStack {
+                    if message.isFavorite {
+                        Image(systemName: "star.fill")
+                            .foregroundColor(.yellow)
+                    }
+                    
+                    if let category = message.category {
+                        Text(category.rawValue)
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.accentColor.opacity(0.2))
+                            .cornerRadius(12)
+                    }
+                }
+                
                 Text(message.text)
                     .padding()
-                    .background(
-                        message.isUser
-                        ? Color.blue
-                        : Color.gray.opacity(0.2)
-                    )
-                    .foregroundColor(
-                        message.isUser
-                        ? .white
-                        : .primary
-                    )
+                    .background(message.isUser ? Color.accentColor : Color(.systemGray5))
+                    .foregroundColor(message.isUser ? .white : .primary)
                     .cornerRadius(16)
                 
-                Text(message.timestamp, style: .time)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                if !message.isUser {
+                    HStack {
+                        Button(action: {
+                            viewModel.speakText(message.text)
+                        }) {
+                            Image(systemName: viewModel.isSpeaking ? "speaker.wave.2.fill" : "speaker.wave.2")
+                                .foregroundColor(.accentColor)
+                        }
+                        
+                        if !message.reactions.isEmpty {
+                            HStack(spacing: 4) {
+                                ForEach(message.reactions, id: \.self) { reaction in
+                                    Text(reaction.rawValue)
+                                }
+                            }
+                        }
+                        
+                        Text(message.timestamp, style: .time)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
             
             if !message.isUser {
@@ -222,10 +315,88 @@ struct MessageBubble: View {
     }
 }
 
+struct CategoryPickerView: View {
+    @Environment(\.dismiss) var dismiss
+    let selectedCategory: MessageCategory?
+    let onSelect: (MessageCategory) -> Void
+    
+    var body: some View {
+        NavigationView {
+            List(MessageCategory.allCases, id: \.self) { category in
+                Button(action: {
+                    onSelect(category)
+                    dismiss()
+                }) {
+                    HStack {
+                        Text(category.rawValue)
+                        Spacer()
+                        if selectedCategory == category {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(.accentColor)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Select Category")
+            .navigationBarItems(trailing: Button("Cancel") { dismiss() })
+        }
+    }
+}
+
+struct ReactionPickerView: View {
+    @Environment(\.dismiss) var dismiss
+    let message: ChatMessage
+    @ObservedObject var viewModel: ChatViewModel
+    
+    var body: some View {
+        NavigationView {
+            List(MessageReaction.allCases, id: \.self) { reaction in
+                Button(action: {
+                    if message.reactions.contains(reaction) {
+                        viewModel.removeReaction(reaction, from: message)
+                    } else {
+                        viewModel.addReaction(reaction, to: message)
+                    }
+                    dismiss()
+                }) {
+                    HStack {
+                        Text(reaction.rawValue)
+                        Spacer()
+                        if message.reactions.contains(reaction) {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(.accentColor)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Add Reaction")
+            .navigationBarItems(trailing: Button("Cancel") { dismiss() })
+        }
+    }
+}
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(
+            activityItems: activityItems,
+            applicationActivities: nil
+        )
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
 struct ChatView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            ChatView(aiService: AITriageService(apiKey: "YOUR_API_KEY", provider: .chatGPT))
+            ChatView(aiServices: [
+                AITriageService(apiKey: "YOUR_API_KEY", provider: .chatGPT),
+                AITriageService(apiKey: "YOUR_API_KEY", provider: .claude),
+                AITriageService(apiKey: "YOUR_API_KEY", provider: .gemini)
+            ])
         }
     }
 } 
