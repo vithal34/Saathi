@@ -27,32 +27,33 @@ enum TriageLevel: String {
 }
 
 struct HealthReportView: View {
-    @State private var reports: [SOAPReport] = [
-        // Sample data
-        SOAPReport(
-            date: Date(),
-            subjective: "Patient reports fever and cough for 3 days",
-            objective: "Temperature: 38.5°C, Pulse: 90 bpm",
-            assessment: "Possible viral infection",
-            plan: "Rest, hydration, monitor symptoms",
-            triageLevel: .semiUrgent
-        )
-    ]
+    @State private var reports: [SOAPReport] = []
+    @State private var showingNewReport = false
+    @State private var selectedReport: SOAPReport?
     
     var body: some View {
-        List {
-            ForEach(reports) { report in
-                ReportCard(report: report)
-            }
-        }
-        .navigationTitle("Health Reports")
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: {
-                    // TODO: Add new report
-                }) {
-                    Image(systemName: "plus")
+        NavigationView {
+            List {
+                ForEach(reports.indices, id: \.self) { index in
+                    ReportCard(report: reports[index])
+                        .onTapGesture {
+                            selectedReport = reports[index]
+                        }
                 }
+            }
+            .navigationTitle("Health Reports")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { showingNewReport = true }) {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingNewReport) {
+                NewReportView(reports: $reports)
+            }
+            .sheet(item: $selectedReport) { report in
+                ReportDetailView(report: report)
             }
         }
     }
@@ -62,51 +63,137 @@ struct ReportCard: View {
     let report: SOAPReport
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Health Assessment")
+                .font(.headline)
+            
+            Text(report.assessment)
+                .font(.subheadline)
+                .lineLimit(2)
+            
             HStack {
-                Text(report.date, style: .date)
-                    .font(.subheadline)
+                Text("Plan")
+                    .font(.caption)
                     .foregroundColor(.secondary)
                 Spacer()
-                Text(report.triageLevel.rawValue)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(report.triageLevel.color.opacity(0.2))
-                    .foregroundColor(report.triageLevel.color)
-                    .cornerRadius(8)
-            }
-            
-            VStack(alignment: .leading, spacing: 8) {
-                ReportSection(title: "Subjective", content: report.subjective)
-                ReportSection(title: "Objective", content: report.objective)
-                ReportSection(title: "Assessment", content: report.assessment)
-                ReportSection(title: "Plan", content: report.plan)
+                Text("View Details")
+                    .font(.caption)
+                    .foregroundColor(.blue)
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color.gray.opacity(0.1))
         .cornerRadius(12)
-        .shadow(radius: 2)
     }
 }
 
-struct ReportSection: View {
-    let title: String
-    let content: String
+struct NewReportView: View {
+    @Environment(\.dismiss) var dismiss
+    @Binding var reports: [SOAPReport]
+    @State private var symptoms = ""
+    @State private var selectedLanguage = "English"
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    
+    private let aiService = AIService(apiKey: "YOUR_API_KEY", provider: .chatGPT)
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.headline)
-                .foregroundColor(.blue)
-            Text(content)
-                .font(.body)
+        NavigationView {
+            Form {
+                Section(header: Text("Language")) {
+                    Picker("Language", selection: $selectedLanguage) {
+                        Text("English").tag("English")
+                        Text("हिंदी").tag("Hindi")
+                    }
+                    .pickerStyle(.segmented)
+                }
+                
+                Section(header: Text("Symptoms")) {
+                    TextEditor(text: $symptoms)
+                        .frame(height: 100)
+                }
+                
+                if let error = errorMessage {
+                    Section {
+                        Text(error)
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+            .navigationTitle("New Report")
+            .navigationBarItems(
+                leading: Button("Cancel") { dismiss() },
+                trailing: Button("Generate") {
+                    generateReport()
+                }
+                .disabled(symptoms.isEmpty || isLoading)
+            )
+            .overlay {
+                if isLoading {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                }
+            }
+        }
+    }
+    
+    private func generateReport() {
+        isLoading = true
+        errorMessage = nil
+        
+        Task {
+            do {
+                let report = try await aiService.generateSOAPReport(
+                    symptoms: symptoms,
+                    language: selectedLanguage
+                )
+                
+                await MainActor.run {
+                    reports.append(report)
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = "Failed to generate report. Please try again."
+                }
+            }
+            
+            await MainActor.run {
+                isLoading = false
+            }
         }
     }
 }
 
-#Preview {
-    NavigationView {
+struct ReportDetailView: View {
+    let report: SOAPReport
+    
+    var body: some View {
+        NavigationView {
+            List {
+                Section(header: Text("Subjective")) {
+                    Text(report.subjective)
+                }
+                
+                Section(header: Text("Objective")) {
+                    Text(report.objective)
+                }
+                
+                Section(header: Text("Assessment")) {
+                    Text(report.assessment)
+                }
+                
+                Section(header: Text("Plan")) {
+                    Text(report.plan)
+                }
+            }
+            .navigationTitle("Report Details")
+        }
+    }
+}
+
+struct HealthReportView_Previews: PreviewProvider {
+    static var previews: some View {
         HealthReportView()
     }
 } 

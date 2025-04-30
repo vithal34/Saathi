@@ -11,39 +11,38 @@ struct ContentView: View {
     }
     
     var body: some View {
-        NavigationView {
-            TabView(selection: $selectedTab) {
-                ChatView()
-                    .tabItem {
-                        Label("Chat", systemImage: "message.fill")
-                    }
-                    .tag(0)
-                
-                HealthReportView()
-                    .tabItem {
-                        Label("Reports", systemImage: "doc.text.fill")
-                    }
-                    .tag(1)
-                
-                ProfileView()
-                    .tabItem {
-                        Label("Profile", systemImage: "person.fill")
-                    }
-                    .tag(2)
-            }
-            .navigationTitle("Saathi")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        showingLanguageSelector = true
-                    }) {
-                        Image(systemName: "globe")
-                    }
+        TabView(selection: $selectedTab) {
+            ChatView()
+                .tabItem {
+                    Label("Chat", systemImage: "message.fill")
+                }
+                .tag(0)
+            
+            HealthReportView()
+                .tabItem {
+                    Label("Reports", systemImage: "doc.text.fill")
+                }
+                .tag(1)
+            
+            ProfileView()
+                .tabItem {
+                    Label("Profile", systemImage: "person.fill")
+                }
+                .tag(2)
+        }
+        .accentColor(.blue)
+        .navigationTitle("Saathi")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    showingLanguageSelector = true
+                }) {
+                    Image(systemName: "globe")
                 }
             }
-            .sheet(isPresented: $showingLanguageSelector) {
-                LanguageSelectorView(selectedLanguage: $selectedLanguage)
-            }
+        }
+        .sheet(isPresented: $showingLanguageSelector) {
+            LanguageSelectorView(selectedLanguage: $selectedLanguage)
         }
     }
 }
@@ -76,6 +75,8 @@ struct LanguageSelectorView: View {
     }
 }
 
-#Preview {
-    ContentView()
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+    }
 } 
